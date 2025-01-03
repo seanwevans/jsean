@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+  <meta charset="UTF-8" name="viewport" content="width=device-width, 
+initial-scale=1.0">
+
+  <title>JSean RFC proposal</title>
+
+  <link rel="stylesheet" href="styles.css">
+  
+  <script src="index.js" defer></script>
+
+</head>
+
+<body>
+
+<header>
+  <table>
+    <tr><td></td><td class='r'></td></tr>
+    <tr><td>Request for Comments:</td><td class='r'></td></tr>
+    <tr><td>Category: Security, Data Structure</td><td class='r'>Sean 
+Evans</td></tr>
+    <tr><td>ISSN:</td><td class='r'>November 2024</td></tr>
+  </table>
+</header>
+
+<main>
+
+<h1>JSean - A Secure and Role-Based JSON Data Structure</h1>
+
+<section id="page1">
+
+  <section id="abstract" class="pre-toc">
+    <h2>Abstract</h2>
+    <p>
+    This document specifies JSON Security Enhanced Access Notation (JSean), 
+    a secure JSON-based data structure designed for granular access control, 
+    field-level encryption, and robust audit capabilities with built-in versioning. 
+    JSean enhances JSON with cryptographic security, role-based access control 
+    (RBAC), schema validation, and versioning to meet the needs of systems handling 
+    sensitive data, ensuring compliance with regulations like GDPR, HIPAA, and SOX, 
+    while maintaining flexibility and performance.</p>
+  </section>
+
+  <section id="status" class="pre-toc">
+    <h2>Status of This Memox</h2>
+    <p>This document is a draft specification for implementation review and 
+community feedback.</p>
+  </section>
+
+  <section id="copyright" class="pre-toc">
+    <h2>Copyright Notice</h2>
+    <p>Copyright (c) 2024 Sean Evans. All rights reserved.</p>
+  </section>
+
+</section>
+
+<section id='page2'>
+
+  <section class="pre-toc">
+    <h2>Table of Contents</h2>
+    <table id='toc'>
+
+      <tr><td><a href='#intro'>1</a>. Introduction</td><td><a href='#page3'>3</a></td></tr>
+      <tr><td>  <a href='#goals'>1.1</a>. Design Goals</td><td><a href='#page3'>3</a></td></tr>
+      <tr><td>  <a href='#keyft'>1.2</a>. Key Features</td><td><a href='#page3'>3</a></td></tr>
+      <tr><td>    <a href='#esect'>1.2.1</a>. Enhanced Security Features</td><td><a href='#page3'>3</a></td></tr>
+      <tr><td>    <a href='#esect'>1.2.2</a>. Access Control Mechanisms</td><td><a href='#page3'>3</a></td></tr>
+      <tr><td>    <a href='#esect'>1.2.3</a>. Validation and Integrity</td><td><a href='#page3'>3</a></td></tr>
+      <tr><td>  <a href='#cases'>1.3</a>. Use Cases</td><td><a href='#page3'>3</a></td></tr>
+      <tr><td>  <a href='#secov'>1.4</a>. Security Overview</td><td><a href='#page3'>3</a></td></tr>
+      
+      <tr><td><a href='#crypt'>2</a>. Field-Level Encryption</td><td><a href='#page4'>4</a></td></tr>
+      <tr><td>  <a href='#crypt'>2.1</a>. Encryption Architecture</td><td><a href='#page4'>4</a></td></tr>
+      <tr><td>  <a href='#crypt'>2.2</a>. Key Management</td><td><a href='#page4'>4</a></td></tr>
+
+      <tr><td><a href='#role'>3</a>. Role-Based Access Control</td><td><a href='#page5'>5</a></td></tr>
+      <tr><td>  <a href='#role'>3.1</a>. Role Hierarchy</td><td><a href='#page5'>5</a></td></tr>
+      <tr><td>  <a href='#role'>3.2</a>. Permission Levels</td><td><a href='#page5'>5</a></td></tr>
+
+      <tr><td><a href='#valid'>4</a>. Schema Validation</td><td><a href='#page7'>7</a></td></tr>
+
+      <tr><td><a href='#vers'>5</a>. Versioning</td><td><a href='#page8'>8</a></td></tr>
+      <tr><td>  <a href='#vers'>5.1</a>. Concept of Versioning</td><td><a href='#page8'>8</a></td></tr>
+      <tr><td>  <a href='#vers'>5.2</a>. Version Storage</td><td><a href='#page8'>8</a></td></tr>
+      <tr><td>  <a href='#vers'>5.3</a>. Versioning Operation</td><td><a href='#page8'>8</a></td></tr>
+      <tr><td>  <a href='#vers'>5.4</a>. Access Control for Versions</td><td><a href='#page8'>8</a></td></tr>
+      <tr><td>  <a href='#vers'>5.5</a>. Implementation Guidelines</td><td><a href='#page8'>8</a></td></tr>
+
+      <tr><td><a href='#secc'>6</a>. Security Considerations</td><td><a href='#page9'>9</a></td></tr>
+      <tr><td>  <a href='#secc'>6.1</a>. Thread Model</td><td><a href='#page9'>9</a></td></tr>
+
+      <tr><td><a href='#impl'>7</a>. Implementation Guide</td><td><a href='#page10'>10</a></td></tr>
+      <tr><td>  <a href='#impl'>7.1</a>. Library Architecture</td><td><a href='#page10'>10</a></td></tr>
+
+      <tr><td><a href='#comp'>8</a>. Compliance and Audit</td><td><a href='#page11'>11</a></td></tr>
+
+      <tr><td><a href='#ext'>9</a>. Extensions and Future Work</td><td><a href='#page12'>12</a></td></tr>
+      <tr><td>  <a href='#ext'>9.1</a>. Extensions and Future Work</td><td><a href='#page12'>12</a></td></tr>
+      <tr><td>    <a href='#ext'>9.1.1</a>. Extensions and Future Work</td><td><a href='#page12'>12</a></td></tr>
+      <tr><td>    <a href='#ext'>9.1.2</a>. Extensions and Future Work</td><td><a href='#page12'>12</a></td></tr>
+      <tr><td>  <a href='#ext'>9.2</a>. Extensions and Future Work</td><td><a href='#page12'>12</a></td></tr>
+
+    </table>
+  </section>
+
+</section>
+
+<section id='page3'>
+
+  <section id="introduction">
+    <h2>1. Introduction</h2>
+    <p>
+      JSean is a secure, JSON-compatible data structure that enhances JSON 
+functionality with advanced security and access control features. It offers 
+field-level encryption, role-based access control (RBAC), and schema-based 
+validation to address the needs of modern applications handling sensitive data.
+    </p>
+    <p>JSean's primary objectives include:</p>
+    <ul>
+      <li><strong>Security:</strong> Protect sensitive data using built-in 
+cryptographic measures.</li>
+      <li><strong>Granular Control:</strong> Enable fine-grained access control 
+tailored to roles and users.</li>
+      <li><strong>Data Validation:</strong> Ensure data integrity through 
+schema-based validation.</li>
+      <li><strong>Compliance:</strong> Support regulations such as GDPR, HIPAA, 
+and SOX.</li>
+      <li><strong>Performance:</strong> Maintain efficiency while ensuring 
+robust security.</li>
+    </ul>
+  </section>
+
+  <section id="design-goals">
+    <h3>1.1. Design Goals</h3>
+    <p>
+      JSean addresses critical challenges in secure data management by focusing 
+on the following design principles:
+    </p>
+    <ul>
+      <li><strong>Security by Design:</strong> Embeds security into the data 
+structure, reducing reliance on application-layer defenses.</li>
+      <li><strong>Granular Access Control:</strong> Enables precise access 
+rules through role-based and attribute-based permissions.</li>
+      <li><strong>Audit Compliance:</strong> Offers detailed logging, version 
+control, and traceability to meet regulatory requirements.</li>
+      <li><strong>Schema Evolution:</strong> Supports seamless updates to data 
+structures while maintaining backward compatibility.</li>
+      <li><strong>Time-Travel Versioning:</strong> Facilitates rollback to 
+previous states, aiding data recovery and debugging.</li>
+      <li><strong>High Performance:</strong> Balances robust security with 
+minimal performance overhead.</li>
+    </ul>
+  </section>
+
+  <section id="key-features">
+    <h3>1.2. Key Features</h3>
+
+    <h4>1.2.1. Enhanced Security Features</h4>
+    <p>
+      JSean integrates advanced security mechanisms to safeguard data, 
+including:
+    </p>
+    <ul>
+      <li>Field-level encryption using AES-256-GCM for confidentiality and 
+integrity.</li>
+      <li>Comprehensive key management, featuring automated key rotation and 
+secure storage.</li>
+      <li>Cryptographic integrity verification to detect tampering.</li>
+      <li>Secure key derivation functions (e.g., HKDF-SHA256) for unique, 
+context-aware key generation.</li>
+    </ul>
+
+    <h4>1.2.2. Access Control Mechanisms</h4>
+    <p>
+      JSean provides flexible and robust access control capabilities:
+    </p>
+    <ul>
+      <li>Role-based access control (RBAC) for hierarchical permissions and 
+role inheritance.</li>
+      <li>Attribute-based access control (ABAC) for dynamic, condition-driven 
+access rules.</li>
+      <li>Dynamic permission evaluation to adapt to runtime contexts.</li>
+      <li>Temporal constraints to restrict access based on time periods or 
+conditions.</li>
+    </ul>
+
+    <h4>1.2.3. Validation and Integrity</h4>
+    <p>
+      To ensure data quality and compliance, JSean supports:
+    </p>
+    <ul>
+      <li>JSON Schema-compatible validation for standard and custom rules.</li>
+      <li>Cross-field validation to enforce complex data relationships.</li>
+      <li>Real-time schema enforcement to maintain consistent data 
+integrity.</li>
+    </ul>
+  </section>
+
+  <section id="use-cases">
+    <h3>1.3. Use Cases</h3>
+    <p>
+      JSean is ideal for applications requiring enhanced security, granular 
+control, and regulatory compliance. Its capabilities are especially suited for:
+    </p>
+
+    <h4>1. Healthcare Systems</h4>
+    <ul>
+      <li>Managing patient records in compliance with HIPAA regulations.</li>
+      <li>Protecting clinical trial data with strong encryption and access 
+controls.</li>
+      <li>Ensuring secure storage of medical device telemetry data.</li>
+    </ul>
+
+    <h4>2. Financial Applications</h4>
+    <ul>
+      <li>Securing transaction and account data to prevent breaches.</li>
+      <li>Maintaining audit trails for regulatory compliance and oversight.</li>
+    </ul>
+
+    <h4>3. Multi-Tenant Systems</h4>
+    <ul>
+      <li>Isolating data between tenants to prevent unauthorized access.</li>
+      <li>Using tenant-specific encryption keys for enhanced security.</li>
+      <li>Implementing cross-tenant access restrictions for fine-grained 
+control.</li>
+    </ul>
+  </section>
+
+</section>
+
+<section id='page4'>
+
+  <section id="crypt">
+    <h2><a href="#crypt">4. Field-Level Encryption</a></h2>
+
+    <section id="arch">
+      <h3><a href="#arch">4.1. Encryption Architecture</a></h3>
+      <p>
+        JSean employs a robust hybrid encryption architecture, ensuring data 
+confidentiality and integrity at the field level. Each data field is 
+independently encrypted, leveraging authenticated encryption with associated 
+data (AEAD) to provide both encryption and tamper detection.
+      </p>
+
+      <pre>
+{
+    "metadata": {
+        "version": "1.0",
+        "encryption": {
+            "algorithm": "AES-256-GCM",
+            "keyId": "key-2024-11-16-001",
+            "ivStrategy": "per-field"
+        }
+    },
+    "data": {
+        "field1": {
+            "value": "encrypted-data-here",
+            "iv": "base64-iv-string",
+            "tag": "authentication-tag",
+            "encryptedKeys": ["value"]
+        }
+    }
+}
+</pre>
+
+      <div class="note">
+        <strong>Implementation Note:</strong> The encryption design utilizes a 
+per-field initialization vector (IV) strategy to ensure unique encryption 
+contexts, minimizing the risk of cryptographic collisions and enabling 
+selective field access without decrypting the entire dataset.
+      </div>
+    </section>
+
+    <section id="keym">
+      <h3><a href="#keym">4.2. Key Management</a></h3>
+      <p>
+        JSean's key management system integrates seamlessly with the encryption 
+architecture, ensuring robust security through automatic rotation, secure 
+storage, and recovery mechanisms. Key management capabilities include:
+      </p>
+
+      <ul>
+        <li><strong>Automatic Key Rotation:</strong> Keys are rotated at 
+regular intervals to limit exposure in the event of compromise.</li>
+        <li><strong>Key Derivation:</strong> Uses HKDF-SHA256 for generating 
+derived keys, ensuring cryptographic separation of roles and permissions.</li>
+        <li><strong>Secure Key Storage:</strong> Keys are securely stored, 
+leveraging hardware security modules (HSM) or equivalent standards.</li>
+        <li><strong>Backup and Recovery:</strong> Ensures that keys are 
+recoverable in case of system failure, maintaining operational integrity.</li>
+      </ul>
+
+      <pre>
+{
+    "keyManagement": {
+        "masterKeyId": "master-2024-11-16",
+        "keyRotationPolicy": {
+            "interval": "30d",
+            "gracePeriod": "7d"
+        },
+        "keyDerivation": {
+            "function": "HKDF-SHA256",
+            "salt": "random-salt-value",
+            "info": "jsean-key-derivation"
+        }
+    }
+}
+</pre>
+
+      <div class="note">
+        <strong>Best Practice:</strong> Combine automatic key rotation with 
+short grace periods to mitigate key exposure risks while minimizing operational 
+disruptions. Use a secure salt and context-specific information in key 
+derivation to ensure the uniqueness of generated keys.
+      </div>
+    </section>
+  </section>
+
+</section>
+
+<section id="page5">
+
+  <section id="role">
+    <h2><a href="#role">5. Role-Based Access Control</a></h2>
+
+    <section id="roleh">
+      <h3><a href="#roleh">5.1. Role Hierarchy</a></h3>
+      <p>
+        JSean supports a hierarchical role-based access control (RBAC) system, 
+allowing roles to inherit permissions from other roles. This structure 
+simplifies permission management and ensures consistency across different 
+access levels.
+      </p>
+
+      <pre>
+{
+    "roles": {
+        "admin": {
+            "inherits": ["manager"],
+            "permissions": ["ALL"]
+        },
+        "manager": {
+            "inherits": ["user"],
+            "permissions": ["READ_ALL", "WRITE_STANDARD"]
+        },
+        "user": {
+            "inherits": [],
+            "permissions": ["READ_STANDARD"]
+        }
+    }
+}
+</pre>
+
+      <div class="note">
+        <strong>Implementation Tip:</strong> Use role inheritance to avoid 
+redundancy in permission assignments. For example, the "admin" role inherits 
+permissions from "manager," streamlining access control updates.
+      </div>
+    </section>
+
+    <section id="perm">
+      <h3><a href="#perm">5.2. Permission Levels</a></h3>
+      <p>
+        JSean enables granular permissions with conditional access rules. Each 
+permission defines the operations allowed, the applicable fields, and any 
+additional conditions.
+      </p>
+
+      <pre>
+{
+    "permissionLevels": {
+        "READ_STANDARD": {
+            "operations": ["VIEW"],
+            "fields": ["public_*", "standard_*"]
+        },
+        "WRITE_STANDARD": {
+            "operations": ["CREATE", "UPDATE"],
+            "fields": ["standard_*"],
+            "conditions": {
+                "timeRestriction": "business_hours",
+                "locationRestriction": "office_network"
+            }
+        }
+    }
+}
+</pre>
+
+      <div class="note">
+        <strong>Best Practice:</strong> Define granular permissions to minimize 
+over-permissioning and align access with security policies. Use conditions such 
+as "timeRestriction" and "locationRestriction" to add contextual controls.
+      </div>
+    </section>
+  </section>
+
+  <section id="versioning">
+    <h2><a href="#vers">7. Versioning</a></h2>
+
+    <section id="verconcept">
+      <h3><a href="#verconcept">7.1. Concept of Versioning</a></h3>
+      <p>
+        JSean implements a time-travel versioning mechanism, allowing systems 
+to trace data changes across its lifecycle. Each version represents a snapshot 
+of the document, capturing the data, permissions, schema, and encryption 
+metadata.
+      </p>
+      <p>Key objectives of versioning include:</p>
+      <ul>
+        <li><strong>Audit Trail:</strong> Maintain a complete history of 
+changes for compliance and troubleshooting.</li>
+        <li><strong>Data Recovery:</strong> Enable rollback to previous states 
+in case of errors or corruption.</li>
+        <li><strong>Schema Evolution:</strong> Support seamless structural 
+changes over time.</li>
+      </ul>
+    </section>
+
+    <section id="verstorage">
+      <h3><a href="#verstorage">7.2. Version Storage</a></h3>
+      <p>
+        Versions are stored as either deltas (incremental changes) or full 
+snapshots, depending on update size and frequency. This dual approach optimizes 
+storage while maintaining efficient access to historical states.
+      </p>
+
+      <pre>
+{
+    "versions": [
+        {
+            "versionId": "v1.0",
+            "timestamp": "2024-11-16T12:00:00Z",
+            "changes": {
+                "added": {"field1": "value1"},
+                "updated": {},
+                "deleted": []
+            },
+            "checksum": "sha256-checksum-here",
+            "author": "admin"
+        },
+        {
+            "versionId": "v1.1",
+            "timestamp": "2024-11-17T15:30:00Z",
+            "changes": {
+                "added": {},
+                "updated": {"field1": "new-value1"},
+                "deleted": ["field2"]
+            },
+            "checksum": "sha256-new-checksum-here",
+            "author": "user1"
+        }
+    ]
+}
+</pre>
+    </section>
+
+    <section id="verops">
+      <h3><a href="#verops">7.3. Versioning Operations</a></h3>
+      <p>Core versioning operations include:</p>
+      <ul>
+        <li><strong>Create Version:</strong> Automatically generate a version 
+snapshot on data modification.</li>
+        <li><strong>View Version:</strong> Retrieve specific versions or the 
+entire version history.</li>
+        <li><strong>Restore Version:</strong> Roll back to a previous version, 
+reinstating the document's state.</li>
+      </ul>
+
+      <pre>
+// Example: Restoring to version 1.0
+const restoredDoc = jsean.restoreVersion('v1.0');
+console.log(restoredDoc);
+</pre>
+    </section>
+
+    <section id="veraccess">
+      <h3><a href="#veraccess">7.4. Access Control for Versions</a></h3>
+      <p>
+        Access to versions is governed by role-based policies. For example:
+      </p>
+      <ul>
+        <li><strong>Admins:</strong> Can view and restore all versions.</li>
+        <li><strong>Users:</strong> Can access only versions they have 
+permissions for.</li>
+      </ul>
+
+      <pre>
+{
+    "versionAccessControl": {
+        "admin": ["view_all", "restore_all"],
+        "user": ["view_own", "restore_own"]
+    }
+}
+    </pre>
+        </section>
+
+        <section id="verimp">
+          <h3><a href="#verimp">7.5. Implementation Guidelines</a></h3>
+          <p>To implement effective versioning:</p>
+          <ol>
+            <li>Integrate a robust checksum mechanism to detect tampering.</li>
+            <li>Adopt a delta-storage approach for frequent updates to save 
+space.</li>
+            <li>Encrypt version metadata to safeguard sensitive historical 
+data.</li>
+          </ol>
+
+          <pre>
+const jsean = new JSean({
+    versioning: {
+        strategy: 'delta',
+        encryption: 'AES-256-GCM',
+        auditTrail: true
+    }
+});
+
+// Enable automatic versioning
+jsean.enableVersioning();
+
+// Add a new data entry with automatic version creation
+jsean.set('field1', 'value1', { versioned: true });
+    </pre>
+        </section>
+      </section>
+
+    </section>
+
+    <section id="page6">
+        <section id='secc'><a href='#secc'>8</a>. Security 
+Considerations</section>
+
+        <section id='threat'><a href='#threat'>8.1</a>. Threat Model</section>
+        <p>JSean's security model addresses the following threat categories:</p>
+
+        <p><strong>8.1.1. Data Confidentiality Threats</strong></p>
+        <ul>
+        <li>Unauthorized access attempts</li>
+        <li>Data exposure vectors</li>
+        <li>Key compromise scenarios</li>
+        </ul>
+
+        <p><strong>8.1.2. Data Integrity Threats</strong></p>
+        <ul>
+        <li>Unauthorized modifications</li>
+        <li>Replay attacks</li>
+        <li>Schema violations</li>
+        </ul>
+
+        <pre>{
+            "threatProtection": {
+                "replayAttack": {
+                    "mechanism": "nonce-based",
+                    "nonceLifetime": "5m"
+                },
+                "bruteForce": {
+                    "rateLimit": {
+                        "window": "5m",
+                        "maxAttempts": 10
+                    }
+                },
+                "sidechannel": {
+                    "timingProtection": true,
+                    "paddingScheme": "PKCS7"
+                }
+            }
+        }</pre>
+
+
+    </section>
+
+    <section id="page7">
+    <section id="impl">
+      <h2><a href="#impl">9. Implementation Guide</a></h2>
+
+      <section id="arch">
+        <h3><a href="#arch">9.1. Library Architecture</a></h3>
+
+        <p>
+          The JSean library is designed with a modular architecture to provide 
+flexibility and extensibility. Its core components work together to manage 
+encryption, validation, schema enforcement, and versioning.
+        </p>
+
+        <h4>Core Components</h4>
+        <pre>
+    interface JSeanDocument {
+        metadata: Metadata;
+        schema: Schema;
+        data: EncryptedData[];
+        versions: Version[];
+    }
+
+    interface EncryptedData {
+        key: string;
+        value: string;
+        iv: string;
+        tag: string;
+        encryptedKeys: string[];
+    }
+
+    interface Schema {
+        fields: SchemaField[];
+        validation: ValidationRules;
+        permissions: PermissionRules;
+    }
+        </pre>
+
+        <div class="note">
+          <strong>Component Breakdown:</strong>
+          <ul>
+            <li><strong>Metadata:</strong> Tracks versioning, encryption 
+details, and configuration information.</li>
+            <li><strong>Schema:</strong> Defines field structures, validation 
+rules, and permissions for data integrity and security.</li>
+            <li><strong>EncryptedData:</strong> Stores sensitive fields with 
+associated encryption metadata (e.g., IV and tags).</li>
+            <li><strong>Versions:</strong> Maintains version history for audit 
+trails and time-travel capabilities.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="usage">
+        <h3>Example Usage</h3>
+
+        <p>
+          The following example demonstrates how to initialize the JSean 
+library, configure encryption and schema validation, and securely store data.
+        </p>
+
+        <pre>
+    const jsean = new JSean({
+        encryption: {
+            algorithm: 'AES-256-GCM',
+            keyManagement: {
+                rotation: true,
+                interval: '30d' // Rotate keys every 30 days
+            }
+        },
+        schema: {
+            strict: true, // Enforce strict validation
+            evolution: {
+                allowed: true, // Allow schema evolution
+                strategy: 'backward-compatible' // Ensure backward compatibility
+            }
+        }
+    });
+
+    // Store encrypted data
+    await jsean.set('sensitive_field', 'secret_value', {
+        encrypt: true, // Enable field encryption
+        roles: ['admin'], // Restrict access to admin role
+        validation: {
+            type: 'string', // Define validation type
+            pattern: '^[A-Za-z0-9]+$' // Enforce alphanumeric values
+        }
+    });
+        </pre>
+
+        <div class="note">
+          <strong>Implementation Notes:</strong>
+          <ul>
+            <li>Configure the <code>encryption</code> property to suit your 
+security requirements (e.g., rotation policies and algorithms).</li>
+            <li>Use the <code>schema</code> property to define validation rules 
+and enforce data structure integrity.</li>
+            <li>Leverage the <code>roles</code> attribute to implement 
+role-based access control at the field level.</li>
+          </ul>
+        </div>
+      </section>
+    </section>
+
+
+
+    </section>
+
+    <section id="page8">
+        <section id='ext'><a href='#ext'>11</a>. Extensions and Future 
+Work</section>
+
+        <section id='planned'><a href='#planned'>11.1</a>. Planned 
+Extensions</section>
+
+        <p><strong>11.1.1. Quantum-Safe Encryption Support</strong></p>
+        <ul>
+        <li>Integration with post-quantum cryptographic algorithms</li>
+        <li>Hybrid classical/quantum-safe encryption modes</li>
+        <li>Quantum-resistant key exchange protocols</li>
+        </ul>
+
+        <p><strong>11.1.2. Advanced Access Control</strong></p>
+        <ul>
+        <li>Context-aware permissions</li>
+        <li>Machine learning-based anomaly detection</li>
+        <li>Behavioral analytics integration</li>
+        </ul>
+
+        <section id='compat'><a href='#compat'>11.2</a>. Compatibility</section>
+
+        <p>Version compatibility matrix:</p>
+
+        <table>
+        <tr>
+            <th>Feature</th>
+            <th>v1.0</th>
+            <th>v1.1</th>
+            <th>v2.0</th>
+        </tr>
+        <tr>
+            <td>Basic Encryption</td>
+            <td>✓</td>
+            <td>✓</td>
+            <td>✓</td>
+        </tr>
+        <tr>
+            <td>RBAC</td>
+            <td>✓</td>
+            <td>✓</td>
+            <td>✓</td>
+        </tr>
+        <tr>
+            <td>ABAC</td>
+            <td>-</td>
+            <td>✓</td>
+            <td>✓</td>
+        </tr>
+        <tr>
+            <td>Quantum-Safe</td>
+            <td>-</td>
+            <td>-</td>
+            <td>✓</td>
+        </tr>
+        <tr>
+            <td>ML Integration</td>
+            <td>-</td>
+            <td>-</td>
+            <td>✓</td>
+        </tr>
+        </table>
+
+
+    </section>
+
+  </main>
+  
+  <footer>
+    &copy; 2024 Sean Evans. All Rights Reserved.
+  </footer>
+
+</body>
+
+</html>
