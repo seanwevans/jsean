@@ -1,3 +1,5 @@
+[📝 Read The RFC here!](https://seanwevans.github.io/jsean/)
+
 # JSean - Secure and Role-Based JSON Data Structure
 
 ## Overview
