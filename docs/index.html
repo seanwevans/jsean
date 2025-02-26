@@ -4,100 +4,135 @@
 
 <head>
 
-  <meta charset="UTF-8" name="viewport" content="width=device-width, 
-initial-scale=1.0">
-
+  <meta charset="UTF-8" name="viewport" content="width=device-width, initial-scale=1.0">
+  
   <title>JSean RFC proposal</title>
 
   <style>
     * {
-  font-size: 1rem;
-}
-
-body {
-  font-family: monospace;
-  width: 50vw;      
-  margin: auto;
-  white-space: wrap;
-}
-
-h1 {
-  text-align: center;
-}
-
-code {
-  background-color: #f8f8f8;
-  padding: 2px 4px;
-  border-radius: 4px;
-  font-size: 90%;
-}
-
-pre {
-  background-color: #f8f8f8;
-  padding: 8px;
-  border: 1px solid #ddd;
-  overflow-x: auto;
-  margin-bottom: 16px;
-  font-size: 90%;
-}
-
-blockquote {
-  margin: 16px 0;
-  padding: 10px;
-  background-color: #f1f1f1;
-  border-left: 5px solid #ccc;
-}
-
-.r {
-  text-align: right;
-}
-
-header table footer {
-  width: 100%;
-  padding-top: 1vh;
-  white-space: pre;
-}
-
-footer {
-    margin: 1vw auto;       
-    text-align: center;
-}
-
-table {
-  white-space: pre;
-  width: 100%;
-  border-collapse: collapse;
-}
-
-p {
-  margin-left: 2rem;
-}    
-
-#toc {
-  margin: 1rem 2rem;
-  width: 95%;
-}    
-
-hr {
-  margin: 1rem;
-}
-
-.note {
-  background-color: #f8f8f8;
-  padding: 1rem;
-  margin: 1rem 2rem;
-  border-left: 4px solid #4CAF50;
-}
-
-.warning {
-  background-color: #fff3f3;
-  padding: 1rem;
-  margin: 1rem 2rem;
-  border-left: 4px solid #ff4444;
-}
+      font-size: 1rem;
+    }
+    
+    body {
+      font-family: monospace;
+      width: 50vw;      
+      margin: auto;
+      white-space: wrap;
+    }
+    
+    h1 {
+      text-align: center;
+    }
+    
+    code {
+      background-color: #f8f8f8;
+      padding: 2px 4px;
+      border-radius: 4px;
+      font-size: 90%;
+    }
+    
+    pre {
+      background-color: #f8f8f8;
+      padding: 8px;
+      border: 1px solid #ddd;
+      overflow-x: auto;
+      margin-bottom: 16px;
+      font-size: 90%;
+    }
+    
+    blockquote {
+      margin: 16px 0;
+      padding: 10px;
+      background-color: #f1f1f1;
+      border-left: 5px solid #ccc;
+    }
+    
+    .r {
+      text-align: right;
+    }
+    
+    header table footer {
+      width: 100%;
+      padding-top: 1vh;
+      white-space: pre;
+    }
+    
+    footer {
+        margin: 1vw auto;       
+        text-align: center;
+    }
+    
+    table {
+      white-space: pre;
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    p {
+      margin-left: 2rem;
+    }    
+    
+    #toc {
+      margin: 1rem 2rem;
+      width: 95%;
+    }    
+    
+    hr {
+      margin: 1rem;
+    }
+    
+    .note {
+      background-color: #f8f8f8;
+      padding: 1rem;
+      margin: 1rem 2rem;
+      border-left: 4px solid #4CAF50;
+    }
+    
+    .warning {
+      background-color: #fff3f3;
+      padding: 1rem;
+      margin: 1rem 2rem;
+      border-left: 4px solid #ff4444;
+    }
   </style>
-  
-  <script src="index.js" defer></script>
+      
+  <script defer>
+    function updateTableOfContents() {
+      const toc = document.getElementById("toc");
+      Array.from(toc.querySelectorAll("tr")).forEach(row => {
+        const titleCell = row.children[0]; // First cell: Title        
+        const pageCell = row.children[1]; // Second cell: Page number
+        const rowWidth = row.offsetWidth;
+        if (titleCell && pageCell) {
+          const titleWidth = titleCell.offsetWidth;
+          const pageWidth = pageCell.offsetWidth;
+          const textlen = titleCell.innerText.length;
+          let numDots = Math.floor(rowWidth / 9.25 - textlen);
+          numDots = numDots >= 0 ? numDots : 0;
+          row.children[0].innerHTML += " " + "·".repeat(numDots) + " ";
+        }
+      });
+    }
+    
+    function boldText(element) {
+      if (element.tagName === "TABLE" || element.closest("table")) return;
+      element.childNodes.forEach(node => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const boldedText = node.nodeValue.replace(/(JSean)/g, "<strong>$1</strong>");
+          const wrapper = document.createElement("span");
+          wrapper.innerHTML = boldedText;
+          node.replaceWith(wrapper);
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          boldText(node);
+        }
+      });
+    }
+    
+    document.addEventListener("DOMContentLoaded", () => {
+      updateTableOfContents();
+      boldText(document.body);
+    });
+  </script>
 
 </head>
 
