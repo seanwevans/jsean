@@ -35,8 +35,8 @@ typedef struct {
 // A single data field
 typedef struct {
     char key[50];
-    unsigned char value[128];  // Can hold binary ciphertext
-    int value_len;             // Length of data stored in value
+    unsigned char value[100];
+    int value_len;
     unsigned char iv[AES_IV_SIZE];
     unsigned char tag[AES_TAG_SIZE];
     int is_encrypted;
@@ -68,7 +68,6 @@ typedef struct {
     SchemaField schema[MAX_FIELDS];
     int schema_count;
     unsigned char aes_key[AES_KEY_SIZE];
-    unsigned char aes_iv[AES_IV_SIZE];
 } JSean;
 
 // Helper function for timestamp
@@ -83,20 +82,16 @@ void initialize(JSean *jsean, SchemaField *schema, int schema_count) {
     memcpy(jsean->schema, schema, schema_count * sizeof(SchemaField));
     jsean->schema_count = schema_count;
     RAND_bytes(jsean->aes_key, AES_KEY_SIZE); // Generate AES key
-    RAND_bytes(jsean->aes_iv, AES_IV_SIZE);   // Generate AES IV
 }
 
 // AES-GCM encryption function for field values
-int encrypt_field(const unsigned char *plaintext, int plaintext_len,
-                  unsigned char *ciphertext, unsigned char *tag,
-                  JSean *jsean, const unsigned char *iv) {
+int encrypt_field(const unsigned char *plaintext, int plaintext_len, unsigned char *ciphertext,
+                  unsigned char *tag, const unsigned char *iv, JSean *jsean) {
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     int len, ciphertext_len;
 
-
-    EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL);
-    EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, AES_IV_SIZE, NULL);
-    EVP_EncryptInit_ex(ctx, NULL, NULL, jsean->aes_key, iv);
+    EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, jsean->aes_key, iv);
+    EVP_EncryptUpdate(ctx, NULL, &len, NULL, plaintext_len); // Set the length of the AAD
 
     EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintext_len);
     ciphertext_len = len;
@@ -110,17 +105,13 @@ int encrypt_field(const unsigned char *plaintext, int plaintext_len,
 }
 
 // AES-GCM decryption function for field values
-int decrypt_field(const unsigned char *ciphertext, int ciphertext_len,
-                  const unsigned char *tag, unsigned char *plaintext,
-                  JSean *jsean, const unsigned char *iv) {
+int decrypt_field(const unsigned char *ciphertext, int ciphertext_len, const unsigned char *tag,
+                  unsigned char *plaintext, const unsigned char *iv, JSean *jsean) {
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     int len, plaintext_len;
 
-
-    EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL);
-    EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, AES_IV_SIZE, NULL);
-    EVP_DecryptInit_ex(ctx, NULL, NULL, jsean->aes_key, iv);
-
+    EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, jsean->aes_key, iv);
+    EVP_DecryptUpdate(ctx, NULL, &len, NULL, ciphertext_len); // Set the length of the AAD
     EVP_DecryptUpdate(ctx, plaintext, &len, ciphertext, ciphertext_len);
     plaintext_len = len;
 
@@ -225,20 +216,18 @@ void store_data_field(JSean *jsean, const char *key, const char *value, const ch
     }
     snprintf(data_field->key, sizeof(data_field->key), "%s", key);
     if (is_encrypted) {
-        encrypted_len = encrypt_field((unsigned char *)value, strlen(value), encrypted_value, tag, jsean);
-        if ((size_t)encrypted_len >= sizeof(data_field->value)) {
-            printf("Error: Encrypted value for key '%s' exceeds maximum length\n", key);
-            return;
-        }
-        snprintf(data_field->value, sizeof(data_field->value), "%.*s", encrypted_len, encrypted_value);
+
+        RAND_bytes(data_field->iv, AES_IV_SIZE);
+        encrypted_len = encrypt_field((unsigned char *)value, strlen(value), encrypted_value,
+                                      data_field->tag, data_field->iv, jsean);
+        memcpy(data_field->value, encrypted_value, encrypted_len);
+        data_field->value_len = encrypted_len;
         data_field->is_encrypted = 1;
         printf("Stored encrypted value for key '%s'\n", key);
     } else {
-        if (strlen(value) >= sizeof(data_field->value)) {
-            printf("Error: Value for key '%s' exceeds maximum length\n", key);
-            return;
-        }
-        snprintf(data_field->value, sizeof(data_field->value), "%s", value);
+        strncpy((char *)data_field->value, value, sizeof(data_field->value) - 1);
+        data_field->value[sizeof(data_field->value) - 1] = '\0';
+        data_field->value_len = strlen((char *)data_field->value);
         data_field->is_encrypted = 0;
         printf("Stored plain value for key '%s'\n", key);
     }
@@ -271,13 +260,11 @@ void retrieve_data_field(JSean *jsean, const char *key, char *output, size_t out
     for (int i = 0; i < jsean->data_count; i++) {
         if (strcmp(jsean->data[i].key, key) == 0) {
             if (jsean->data[i].is_encrypted) {
-                unsigned char decrypted_value[128];
-                int decrypted_len = decrypt_field(jsean->data[i].value,
-                                                 jsean->data[i].value_len,
-                                                 jsean->data[i].tag,
-                                                 decrypted_value,
-                                                 jsean,
-                                                 jsean->data[i].iv);
+
+                unsigned char decrypted_value[100];
+                int decrypted_len = decrypt_field(jsean->data[i].value, jsean->data[i].value_len,
+                                                jsean->data[i].tag, decrypted_value,
+                                                jsean->data[i].iv, jsean);
                 if (decrypted_len < 0) {
                     printf("Decryption failed for key '%s'\n", key);
                     return;
@@ -289,10 +276,10 @@ void retrieve_data_field(JSean *jsean, const char *key, char *output, size_t out
                 snprintf(output, output_size, "%s", (char *)decrypted_value);
                 printf("Retrieved decrypted value for key '%s'\n", key);
             } else {
-                if (strlen(jsean->data[i].value) >= output_size) {
-                    printf("Warning: Output buffer too small, truncating value for key '%s'\n", key);
-                }
-                snprintf(output, output_size, "%s", jsean->data[i].value);
+
+                strncpy(output, (char *)jsean->data[i].value, jsean->data[i].value_len);
+                output[jsean->data[i].value_len] = '\0';
+
             }
             return;
         }
