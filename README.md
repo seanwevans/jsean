@@ -19,10 +19,25 @@ JSean (JSON Security Enhanced Access Notation) is a secure, JSON-compatible data
 - Example program demonstrating encrypted field storage and retrieval with RBAC enforcement.
 
 ## Getting Started
-1. Compile the `jsean.c` file:
+1. Make sure the OpenSSL development headers are available on your system. On
+   Debian/Ubuntu you can install them with:
+   ```bash
+   sudo apt-get install libssl-dev
+   ```
+2. Compile the `jsean.c` file using `gcc` and link against OpenSSL:
    ```bash
    gcc -o jsean jsean.c -lcrypto
    ```
+
+## Running the Example
+Execute the compiled binary to see the demo interaction:
+```bash
+./jsean
+```
+The output shows encryption of selected fields and permission checks.
+
+> **Note**: This code is a prototype meant for demonstration only and is not
+> production ready.
 
 ## License
 This project is licensed under the [MIT License](LICENSE).
