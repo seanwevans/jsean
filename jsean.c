@@ -92,6 +92,7 @@ int encrypt_field(const unsigned char *plaintext, int plaintext_len,
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     int len, ciphertext_len;
 
+
     EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL);
     EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, AES_IV_SIZE, NULL);
     EVP_EncryptInit_ex(ctx, NULL, NULL, jsean->aes_key, iv);
@@ -113,6 +114,7 @@ int decrypt_field(const unsigned char *ciphertext, int ciphertext_len,
                   JSean *jsean, const unsigned char *iv) {
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     int len, plaintext_len;
+
 
     EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL);
     EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, AES_IV_SIZE, NULL);
@@ -163,13 +165,51 @@ void store_data_field(JSean *jsean, const char *key, const char *value, const ch
         return;
     }
 
+    // Validation based on schema
+    char validated_value[100];
+    strncpy(validated_value, value, sizeof(validated_value) - 1);
+    validated_value[sizeof(validated_value) - 1] = '\0';
+
+    if (schema_field->type == TYPE_INT) {
+        char *endptr;
+        long int_val = strtol(value, &endptr, 10);
+        if (*endptr != '\0') {
+            printf("Validation Error: Value '%s' for key '%s' is not a valid integer\n", value, key);
+            return;
+        }
+        if (int_val < schema_field->int_min || int_val > schema_field->int_max) {
+            printf("Validation Error: Integer value %ld for key '%s' out of range (%d-%d)\n",
+                   int_val, key, schema_field->int_min, schema_field->int_max);
+            return;
+        }
+        snprintf(validated_value, sizeof(validated_value), "%ld", int_val);
+    } else if (schema_field->type == TYPE_STRING && schema_field->num_allowed_values > 0) {
+        int valid = 0;
+        for (int i = 0; i < schema_field->num_allowed_values; i++) {
+            if (strcmp(schema_field->allowed_values[i], value) == 0) {
+                valid = 1;
+                break;
+            }
+        }
+        if (!valid) {
+            printf("Validation Error: Value '%s' not allowed for key '%s'\n", value, key);
+            return;
+        }
+    }
+
     int is_encrypted = schema_field->is_encrypted;
     unsigned char encrypted_value[128];
     int encrypted_len = 0;
 
-    DataField *data_field = &jsean->data[jsean->data_count++];
+    if (jsean->data_count >= MAX_FIELDS) {
+        printf("Error: Maximum number of fields reached\n");
+        return;
+    }
+
+    DataField *data_field = &jsean->data[jsean->data_count];
     strcpy(data_field->key, key);
     if (is_encrypted) {
+
         RAND_bytes(data_field->iv, AES_IV_SIZE);
         encrypted_len = encrypt_field((unsigned char *)value, strlen(value),
                                       encrypted_value, data_field->tag,
@@ -185,6 +225,7 @@ void store_data_field(JSean *jsean, const char *key, const char *value, const ch
         data_field->is_encrypted = 0;
         printf("Stored plain value for key '%s'\n", key);
     }
+    jsean->data_count++;
 }
 
 // Retrieve and decrypt a data field if encrypted, with permission check
@@ -236,6 +277,7 @@ void retrieve_data_field(JSean *jsean, const char *key, char *output, const char
 }
 
 // Example usage
+#ifndef JSEAN_NO_MAIN
 int main() {
     // Define schema with encryption required for specific fields
     SchemaField schema[] = {
@@ -266,3 +308,4 @@ int main() {
 
     return 0;
 }
+#endif // JSEAN_NO_MAIN
