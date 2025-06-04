@@ -4,6 +4,7 @@
 #include <time.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
+#include <openssl/crypto.h>
 
 #define MAX_FIELDS 10
 #define MAX_VERSIONS 20
@@ -132,6 +133,16 @@ int decrypt_field(const unsigned char *ciphertext, int ciphertext_len,
 
     EVP_CIPHER_CTX_free(ctx);
     return plaintext_len;
+}
+
+// Overwrite sensitive buffers before program exit
+void cleanup_jsean(JSean *jsean) {
+    OPENSSL_cleanse(jsean->aes_key, AES_KEY_SIZE);
+    OPENSSL_cleanse(jsean->aes_iv, AES_IV_SIZE);
+
+    for (int i = 0; i < jsean->data_count; i++) {
+        OPENSSL_cleanse(jsean->data[i].value, sizeof(jsean->data[i].value));
+    }
 }
 
 // Check if user has permission to access or modify a field
@@ -306,6 +317,7 @@ int main() {
     retrieve_data_field(&jsean, "confidential_info", output, "editor");  // Should fail
     store_data_field(&jsean, "confidential_info", "NewSensitiveData", "technician", "editor");  // Should fail
 
+    cleanup_jsean(&jsean);
     return 0;
 }
 #endif // JSEAN_NO_MAIN
