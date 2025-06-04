@@ -4,6 +4,7 @@
 #include <time.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
+#include <openssl/crypto.h>
 
 #define MAX_FIELDS 10
 #define MAX_VERSIONS 20
@@ -91,6 +92,7 @@ int encrypt_field(const unsigned char *plaintext, int plaintext_len, unsigned ch
 
     EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, jsean->aes_key, iv);
     EVP_EncryptUpdate(ctx, NULL, &len, NULL, plaintext_len); // Set the length of the AAD
+
     EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintext_len);
     ciphertext_len = len;
 
@@ -124,6 +126,16 @@ int decrypt_field(const unsigned char *ciphertext, int ciphertext_len, const uns
     return plaintext_len;
 }
 
+// Overwrite sensitive buffers before program exit
+void cleanup_jsean(JSean *jsean) {
+    OPENSSL_cleanse(jsean->aes_key, AES_KEY_SIZE);
+    OPENSSL_cleanse(jsean->aes_iv, AES_IV_SIZE);
+
+    for (int i = 0; i < jsean->data_count; i++) {
+        OPENSSL_cleanse(jsean->data[i].value, sizeof(jsean->data[i].value));
+    }
+}
+
 // Check if user has permission to access or modify a field
 int has_permission(SchemaField *field, const char *permission_level) {
     for (int i = 0; i < field->num_permission_levels; i++) {
@@ -155,13 +167,56 @@ void store_data_field(JSean *jsean, const char *key, const char *value, const ch
         return;
     }
 
+    // Validation based on schema
+    char validated_value[100];
+    strncpy(validated_value, value, sizeof(validated_value) - 1);
+    validated_value[sizeof(validated_value) - 1] = '\0';
+
+    if (schema_field->type == TYPE_INT) {
+        char *endptr;
+        long int_val = strtol(value, &endptr, 10);
+        if (*endptr != '\0') {
+            printf("Validation Error: Value '%s' for key '%s' is not a valid integer\n", value, key);
+            return;
+        }
+        if (int_val < schema_field->int_min || int_val > schema_field->int_max) {
+            printf("Validation Error: Integer value %ld for key '%s' out of range (%d-%d)\n",
+                   int_val, key, schema_field->int_min, schema_field->int_max);
+            return;
+        }
+        snprintf(validated_value, sizeof(validated_value), "%ld", int_val);
+    } else if (schema_field->type == TYPE_STRING && schema_field->num_allowed_values > 0) {
+        int valid = 0;
+        for (int i = 0; i < schema_field->num_allowed_values; i++) {
+            if (strcmp(schema_field->allowed_values[i], value) == 0) {
+                valid = 1;
+                break;
+            }
+        }
+        if (!valid) {
+            printf("Validation Error: Value '%s' not allowed for key '%s'\n", value, key);
+            return;
+        }
+    }
+
     int is_encrypted = schema_field->is_encrypted;
     unsigned char encrypted_value[128];
     int encrypted_len = 0;
 
-    DataField *data_field = &jsean->data[jsean->data_count++];
-    strcpy(data_field->key, key);
+    if (jsean->data_count >= MAX_FIELDS) {
+        printf("Error: Maximum number of fields reached\n");
+        return;
+    }
+
+    DataField *data_field = &jsean->data[jsean->data_count];
+
+    if (strlen(key) >= sizeof(data_field->key)) {
+        printf("Error: Key '%s' exceeds maximum length\n", key);
+        return;
+    }
+    snprintf(data_field->key, sizeof(data_field->key), "%s", key);
     if (is_encrypted) {
+
         RAND_bytes(data_field->iv, AES_IV_SIZE);
         encrypted_len = encrypt_field((unsigned char *)value, strlen(value), encrypted_value,
                                       data_field->tag, data_field->iv, jsean);
@@ -176,10 +231,13 @@ void store_data_field(JSean *jsean, const char *key, const char *value, const ch
         data_field->is_encrypted = 0;
         printf("Stored plain value for key '%s'\n", key);
     }
+
+
+    jsean->data_count++;
 }
 
 // Retrieve and decrypt a data field if encrypted, with permission check
-void retrieve_data_field(JSean *jsean, const char *key, char *output, const char *permission_level) {
+void retrieve_data_field(JSean *jsean, const char *key, char *output, size_t output_size, const char *permission_level) {
     SchemaField *schema_field = NULL;
     for (int i = 0; i < jsean->schema_count; i++) {
         if (strcmp(jsean->schema[i].key, key) == 0) {
@@ -202,6 +260,7 @@ void retrieve_data_field(JSean *jsean, const char *key, char *output, const char
     for (int i = 0; i < jsean->data_count; i++) {
         if (strcmp(jsean->data[i].key, key) == 0) {
             if (jsean->data[i].is_encrypted) {
+
                 unsigned char decrypted_value[100];
                 int decrypted_len = decrypt_field(jsean->data[i].value, jsean->data[i].value_len,
                                                 jsean->data[i].tag, decrypted_value,
@@ -211,11 +270,16 @@ void retrieve_data_field(JSean *jsean, const char *key, char *output, const char
                     return;
                 }
                 decrypted_value[decrypted_len] = '\0';
-                strcpy(output, (char *)decrypted_value);
+                if ((size_t)decrypted_len >= output_size) {
+                    printf("Warning: Output buffer too small, truncating decrypted value for key '%s'\n", key);
+                }
+                snprintf(output, output_size, "%s", (char *)decrypted_value);
                 printf("Retrieved decrypted value for key '%s'\n", key);
             } else {
+
                 strncpy(output, (char *)jsean->data[i].value, jsean->data[i].value_len);
                 output[jsean->data[i].value_len] = '\0';
+
             }
             return;
         }
@@ -224,6 +288,7 @@ void retrieve_data_field(JSean *jsean, const char *key, char *output, const char
 }
 
 // Example usage
+#ifndef JSEAN_NO_MAIN
 int main() {
     // Define schema with encryption required for specific fields
     SchemaField schema[] = {
@@ -242,15 +307,17 @@ int main() {
 
     // Retrieve fields (will decrypt if encrypted) with permission checking
     char output[100];
-    retrieve_data_field(&jsean, "temperature", output, "editor");
+    retrieve_data_field(&jsean, "temperature", output, sizeof(output), "editor");
     printf("Temperature: %s\n", output);
 
-    retrieve_data_field(&jsean, "confidential_info", output, "admin");
+    retrieve_data_field(&jsean, "confidential_info", output, sizeof(output), "admin");
     printf("Confidential Info: %s\n", output);
 
     // Attempt unauthorized access
-    retrieve_data_field(&jsean, "confidential_info", output, "editor");  // Should fail
+    retrieve_data_field(&jsean, "confidential_info", output, sizeof(output), "editor");  // Should fail
     store_data_field(&jsean, "confidential_info", "NewSensitiveData", "technician", "editor");  // Should fail
 
+    cleanup_jsean(&jsean);
     return 0;
 }
+#endif // JSEAN_NO_MAIN
