@@ -25,5 +25,5 @@ JSean (JSON Security Enhanced Access Notation) is a secure, JSON-compatible data
    ```
 
 ## License
-Copyright (c) 2024 Sean Evans. All rights reserved.
+This project is licensed under the [MIT License](LICENSE).
 
