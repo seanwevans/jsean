@@ -91,8 +91,6 @@ int encrypt_field(const unsigned char *plaintext, int plaintext_len, unsigned ch
     int len, ciphertext_len;
 
     EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, jsean->aes_key, iv);
-    EVP_EncryptUpdate(ctx, NULL, &len, NULL, plaintext_len); // Set the length of the AAD
-
     EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintext_len);
     ciphertext_len = len;
 
@@ -111,7 +109,6 @@ int decrypt_field(const unsigned char *ciphertext, int ciphertext_len, const uns
     int len, plaintext_len;
 
     EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, jsean->aes_key, iv);
-    EVP_DecryptUpdate(ctx, NULL, &len, NULL, ciphertext_len); // Set the length of the AAD
     EVP_DecryptUpdate(ctx, plaintext, &len, ciphertext, ciphertext_len);
     plaintext_len = len;
 
@@ -129,7 +126,6 @@ int decrypt_field(const unsigned char *ciphertext, int ciphertext_len, const uns
 // Overwrite sensitive buffers before program exit
 void cleanup_jsean(JSean *jsean) {
     OPENSSL_cleanse(jsean->aes_key, AES_KEY_SIZE);
-    OPENSSL_cleanse(jsean->aes_iv, AES_IV_SIZE);
 
     for (int i = 0; i < jsean->data_count; i++) {
         OPENSSL_cleanse(jsean->data[i].value, sizeof(jsean->data[i].value));
