@@ -36,6 +36,13 @@ Execute the compiled binary to see the demo interaction:
 ```
 The output shows encryption of selected fields and permission checks.
 
+## Running Tests
+Unit tests are provided to verify the core functionality. Run them with:
+```bash
+make test
+```
+This command builds and executes the test suite.
+
 > **Note**: This code is a prototype meant for demonstration only and is not
 > production ready.
 
