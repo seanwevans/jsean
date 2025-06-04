@@ -4,6 +4,7 @@
 #include <time.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
+#include <openssl/crypto.h>
 
 #define MAX_FIELDS 10
 #define MAX_VERSIONS 20
@@ -34,7 +35,10 @@ typedef struct {
 // A single data field
 typedef struct {
     char key[50];
-    char value[100];
+    unsigned char value[128];  // Can hold binary ciphertext
+    int value_len;             // Length of data stored in value
+    unsigned char iv[AES_IV_SIZE];
+    unsigned char tag[AES_TAG_SIZE];
     int is_encrypted;
 } DataField;
 
@@ -83,12 +87,17 @@ void initialize(JSean *jsean, SchemaField *schema, int schema_count) {
 }
 
 // AES-GCM encryption function for field values
-int encrypt_field(const unsigned char *plaintext, int plaintext_len, unsigned char *ciphertext, unsigned char *tag, JSean *jsean) {
+int encrypt_field(const unsigned char *plaintext, int plaintext_len,
+                  unsigned char *ciphertext, unsigned char *tag,
+                  JSean *jsean, const unsigned char *iv) {
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     int len, ciphertext_len;
 
-    EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, jsean->aes_key, jsean->aes_iv);
-    EVP_EncryptUpdate(ctx, NULL, &len, NULL, plaintext_len); // Set the length of the AAD
+
+    EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL);
+    EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, AES_IV_SIZE, NULL);
+    EVP_EncryptInit_ex(ctx, NULL, NULL, jsean->aes_key, iv);
+
     EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintext_len);
     ciphertext_len = len;
 
@@ -101,12 +110,17 @@ int encrypt_field(const unsigned char *plaintext, int plaintext_len, unsigned ch
 }
 
 // AES-GCM decryption function for field values
-int decrypt_field(const unsigned char *ciphertext, int ciphertext_len, const unsigned char *tag, unsigned char *plaintext, JSean *jsean) {
+int decrypt_field(const unsigned char *ciphertext, int ciphertext_len,
+                  const unsigned char *tag, unsigned char *plaintext,
+                  JSean *jsean, const unsigned char *iv) {
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     int len, plaintext_len;
 
-    EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, jsean->aes_key, jsean->aes_iv);
-    EVP_DecryptUpdate(ctx, NULL, &len, NULL, ciphertext_len); // Set the length of the AAD
+
+    EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL);
+    EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, AES_IV_SIZE, NULL);
+    EVP_DecryptInit_ex(ctx, NULL, NULL, jsean->aes_key, iv);
+
     EVP_DecryptUpdate(ctx, plaintext, &len, ciphertext, ciphertext_len);
     plaintext_len = len;
 
@@ -119,6 +133,16 @@ int decrypt_field(const unsigned char *ciphertext, int ciphertext_len, const uns
 
     EVP_CIPHER_CTX_free(ctx);
     return plaintext_len;
+}
+
+// Overwrite sensitive buffers before program exit
+void cleanup_jsean(JSean *jsean) {
+    OPENSSL_cleanse(jsean->aes_key, AES_KEY_SIZE);
+    OPENSSL_cleanse(jsean->aes_iv, AES_IV_SIZE);
+
+    for (int i = 0; i < jsean->data_count; i++) {
+        OPENSSL_cleanse(jsean->data[i].value, sizeof(jsean->data[i].value));
+    }
 }
 
 // Check if user has permission to access or modify a field
@@ -152,9 +176,40 @@ void store_data_field(JSean *jsean, const char *key, const char *value, const ch
         return;
     }
 
+    // Validation based on schema
+    char validated_value[100];
+    strncpy(validated_value, value, sizeof(validated_value) - 1);
+    validated_value[sizeof(validated_value) - 1] = '\0';
+
+    if (schema_field->type == TYPE_INT) {
+        char *endptr;
+        long int_val = strtol(value, &endptr, 10);
+        if (*endptr != '\0') {
+            printf("Validation Error: Value '%s' for key '%s' is not a valid integer\n", value, key);
+            return;
+        }
+        if (int_val < schema_field->int_min || int_val > schema_field->int_max) {
+            printf("Validation Error: Integer value %ld for key '%s' out of range (%d-%d)\n",
+                   int_val, key, schema_field->int_min, schema_field->int_max);
+            return;
+        }
+        snprintf(validated_value, sizeof(validated_value), "%ld", int_val);
+    } else if (schema_field->type == TYPE_STRING && schema_field->num_allowed_values > 0) {
+        int valid = 0;
+        for (int i = 0; i < schema_field->num_allowed_values; i++) {
+            if (strcmp(schema_field->allowed_values[i], value) == 0) {
+                valid = 1;
+                break;
+            }
+        }
+        if (!valid) {
+            printf("Validation Error: Value '%s' not allowed for key '%s'\n", value, key);
+            return;
+        }
+    }
+
     int is_encrypted = schema_field->is_encrypted;
     unsigned char encrypted_value[128];
-    unsigned char tag[AES_TAG_SIZE];
     int encrypted_len = 0;
 
     if (jsean->data_count >= MAX_FIELDS) {
@@ -163,6 +218,7 @@ void store_data_field(JSean *jsean, const char *key, const char *value, const ch
     }
 
     DataField *data_field = &jsean->data[jsean->data_count];
+
     if (strlen(key) >= sizeof(data_field->key)) {
         printf("Error: Key '%s' exceeds maximum length\n", key);
         return;
@@ -186,6 +242,7 @@ void store_data_field(JSean *jsean, const char *key, const char *value, const ch
         data_field->is_encrypted = 0;
         printf("Stored plain value for key '%s'\n", key);
     }
+
 
     jsean->data_count++;
 }
@@ -214,9 +271,13 @@ void retrieve_data_field(JSean *jsean, const char *key, char *output, size_t out
     for (int i = 0; i < jsean->data_count; i++) {
         if (strcmp(jsean->data[i].key, key) == 0) {
             if (jsean->data[i].is_encrypted) {
-                unsigned char decrypted_value[100];
-                unsigned char tag[AES_TAG_SIZE];
-                int decrypted_len = decrypt_field((unsigned char *)jsean->data[i].value, strlen(jsean->data[i].value), tag, decrypted_value, jsean);
+                unsigned char decrypted_value[128];
+                int decrypted_len = decrypt_field(jsean->data[i].value,
+                                                 jsean->data[i].value_len,
+                                                 jsean->data[i].tag,
+                                                 decrypted_value,
+                                                 jsean,
+                                                 jsean->data[i].iv);
                 if (decrypted_len < 0) {
                     printf("Decryption failed for key '%s'\n", key);
                     return;
@@ -240,6 +301,7 @@ void retrieve_data_field(JSean *jsean, const char *key, char *output, size_t out
 }
 
 // Example usage
+#ifndef JSEAN_NO_MAIN
 int main() {
     // Define schema with encryption required for specific fields
     SchemaField schema[] = {
@@ -268,5 +330,7 @@ int main() {
     retrieve_data_field(&jsean, "confidential_info", output, sizeof(output), "editor");  // Should fail
     store_data_field(&jsean, "confidential_info", "NewSensitiveData", "technician", "editor");  // Should fail
 
+    cleanup_jsean(&jsean);
     return 0;
 }
+#endif // JSEAN_NO_MAIN
