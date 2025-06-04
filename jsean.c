@@ -157,7 +157,12 @@ void store_data_field(JSean *jsean, const char *key, const char *value, const ch
     unsigned char tag[AES_TAG_SIZE];
     int encrypted_len = 0;
 
-    DataField *data_field = &jsean->data[jsean->data_count++];
+    if (jsean->data_count >= MAX_FIELDS) {
+        printf("Error: Maximum number of fields reached\n");
+        return;
+    }
+
+    DataField *data_field = &jsean->data[jsean->data_count];
     strcpy(data_field->key, key);
     if (is_encrypted) {
         encrypted_len = encrypt_field((unsigned char *)value, strlen(value), encrypted_value, tag, jsean);
@@ -169,6 +174,7 @@ void store_data_field(JSean *jsean, const char *key, const char *value, const ch
         data_field->is_encrypted = 0;
         printf("Stored plain value for key '%s'\n", key);
     }
+    jsean->data_count++;
 }
 
 // Retrieve and decrypt a data field if encrypted, with permission check
