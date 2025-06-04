@@ -218,29 +218,37 @@ void store_data_field(JSean *jsean, const char *key, const char *value, const ch
     }
 
     DataField *data_field = &jsean->data[jsean->data_count];
-    strcpy(data_field->key, key);
-    if (is_encrypted) {
 
-        RAND_bytes(data_field->iv, AES_IV_SIZE);
-        encrypted_len = encrypt_field((unsigned char *)value, strlen(value),
-                                      encrypted_value, data_field->tag,
-                                      jsean, data_field->iv);
-        memcpy(data_field->value, encrypted_value, encrypted_len);
-        data_field->value_len = encrypted_len;
+    if (strlen(key) >= sizeof(data_field->key)) {
+        printf("Error: Key '%s' exceeds maximum length\n", key);
+        return;
+    }
+    snprintf(data_field->key, sizeof(data_field->key), "%s", key);
+    if (is_encrypted) {
+        encrypted_len = encrypt_field((unsigned char *)value, strlen(value), encrypted_value, tag, jsean);
+        if ((size_t)encrypted_len >= sizeof(data_field->value)) {
+            printf("Error: Encrypted value for key '%s' exceeds maximum length\n", key);
+            return;
+        }
+        snprintf(data_field->value, sizeof(data_field->value), "%.*s", encrypted_len, encrypted_value);
         data_field->is_encrypted = 1;
         printf("Stored encrypted value for key '%s'\n", key);
     } else {
-        strncpy((char *)data_field->value, value, sizeof(data_field->value) - 1);
-        data_field->value_len = strlen(value);
-        data_field->value[data_field->value_len] = '\0';
+        if (strlen(value) >= sizeof(data_field->value)) {
+            printf("Error: Value for key '%s' exceeds maximum length\n", key);
+            return;
+        }
+        snprintf(data_field->value, sizeof(data_field->value), "%s", value);
         data_field->is_encrypted = 0;
         printf("Stored plain value for key '%s'\n", key);
     }
+
+
     jsean->data_count++;
 }
 
 // Retrieve and decrypt a data field if encrypted, with permission check
-void retrieve_data_field(JSean *jsean, const char *key, char *output, const char *permission_level) {
+void retrieve_data_field(JSean *jsean, const char *key, char *output, size_t output_size, const char *permission_level) {
     SchemaField *schema_field = NULL;
     for (int i = 0; i < jsean->schema_count; i++) {
         if (strcmp(jsean->schema[i].key, key) == 0) {
@@ -275,11 +283,16 @@ void retrieve_data_field(JSean *jsean, const char *key, char *output, const char
                     return;
                 }
                 decrypted_value[decrypted_len] = '\0';
-                strcpy(output, (char *)decrypted_value);
+                if ((size_t)decrypted_len >= output_size) {
+                    printf("Warning: Output buffer too small, truncating decrypted value for key '%s'\n", key);
+                }
+                snprintf(output, output_size, "%s", (char *)decrypted_value);
                 printf("Retrieved decrypted value for key '%s'\n", key);
             } else {
-                memcpy(output, jsean->data[i].value, jsean->data[i].value_len);
-                output[jsean->data[i].value_len] = '\0';
+                if (strlen(jsean->data[i].value) >= output_size) {
+                    printf("Warning: Output buffer too small, truncating value for key '%s'\n", key);
+                }
+                snprintf(output, output_size, "%s", jsean->data[i].value);
             }
             return;
         }
@@ -307,14 +320,14 @@ int main() {
 
     // Retrieve fields (will decrypt if encrypted) with permission checking
     char output[100];
-    retrieve_data_field(&jsean, "temperature", output, "editor");
+    retrieve_data_field(&jsean, "temperature", output, sizeof(output), "editor");
     printf("Temperature: %s\n", output);
 
-    retrieve_data_field(&jsean, "confidential_info", output, "admin");
+    retrieve_data_field(&jsean, "confidential_info", output, sizeof(output), "admin");
     printf("Confidential Info: %s\n", output);
 
     // Attempt unauthorized access
-    retrieve_data_field(&jsean, "confidential_info", output, "editor");  // Should fail
+    retrieve_data_field(&jsean, "confidential_info", output, sizeof(output), "editor");  // Should fail
     store_data_field(&jsean, "confidential_info", "NewSensitiveData", "technician", "editor");  // Should fail
 
     cleanup_jsean(&jsean);
