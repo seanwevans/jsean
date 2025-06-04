@@ -88,7 +88,6 @@ int encrypt_field(const unsigned char *plaintext, int plaintext_len, unsigned ch
     int len, ciphertext_len;
 
     EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, jsean->aes_key, jsean->aes_iv);
-    EVP_EncryptUpdate(ctx, NULL, &len, NULL, plaintext_len); // Set the length of the AAD
     EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintext_len);
     ciphertext_len = len;
 
@@ -106,7 +105,6 @@ int decrypt_field(const unsigned char *ciphertext, int ciphertext_len, const uns
     int len, plaintext_len;
 
     EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, jsean->aes_key, jsean->aes_iv);
-    EVP_DecryptUpdate(ctx, NULL, &len, NULL, ciphertext_len); // Set the length of the AAD
     EVP_DecryptUpdate(ctx, plaintext, &len, ciphertext, ciphertext_len);
     plaintext_len = len;
 
@@ -215,6 +213,7 @@ void retrieve_data_field(JSean *jsean, const char *key, char *output, const char
 }
 
 // Example usage
+#ifndef JSEAN_NO_MAIN
 int main() {
     // Define schema with encryption required for specific fields
     SchemaField schema[] = {
@@ -245,3 +244,4 @@ int main() {
 
     return 0;
 }
+#endif // JSEAN_NO_MAIN
