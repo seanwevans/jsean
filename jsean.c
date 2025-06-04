@@ -129,7 +129,6 @@ int decrypt_field(const unsigned char *ciphertext, int ciphertext_len, const uns
 // Overwrite sensitive buffers before program exit
 void cleanup_jsean(JSean *jsean) {
     OPENSSL_cleanse(jsean->aes_key, AES_KEY_SIZE);
-    OPENSSL_cleanse(jsean->aes_iv, AES_IV_SIZE);
 
     for (int i = 0; i < jsean->data_count; i++) {
         OPENSSL_cleanse(jsean->data[i].value, sizeof(jsean->data[i].value));
