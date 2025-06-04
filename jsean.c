@@ -152,6 +152,38 @@ void store_data_field(JSean *jsean, const char *key, const char *value, const ch
         return;
     }
 
+    // Validation based on schema
+    char validated_value[100];
+    strncpy(validated_value, value, sizeof(validated_value) - 1);
+    validated_value[sizeof(validated_value) - 1] = '\0';
+
+    if (schema_field->type == TYPE_INT) {
+        char *endptr;
+        long int_val = strtol(value, &endptr, 10);
+        if (*endptr != '\0') {
+            printf("Validation Error: Value '%s' for key '%s' is not a valid integer\n", value, key);
+            return;
+        }
+        if (int_val < schema_field->int_min || int_val > schema_field->int_max) {
+            printf("Validation Error: Integer value %ld for key '%s' out of range (%d-%d)\n",
+                   int_val, key, schema_field->int_min, schema_field->int_max);
+            return;
+        }
+        snprintf(validated_value, sizeof(validated_value), "%ld", int_val);
+    } else if (schema_field->type == TYPE_STRING && schema_field->num_allowed_values > 0) {
+        int valid = 0;
+        for (int i = 0; i < schema_field->num_allowed_values; i++) {
+            if (strcmp(schema_field->allowed_values[i], value) == 0) {
+                valid = 1;
+                break;
+            }
+        }
+        if (!valid) {
+            printf("Validation Error: Value '%s' not allowed for key '%s'\n", value, key);
+            return;
+        }
+    }
+
     int is_encrypted = schema_field->is_encrypted;
     unsigned char encrypted_value[128];
     unsigned char tag[AES_TAG_SIZE];
@@ -160,12 +192,12 @@ void store_data_field(JSean *jsean, const char *key, const char *value, const ch
     DataField *data_field = &jsean->data[jsean->data_count++];
     strcpy(data_field->key, key);
     if (is_encrypted) {
-        encrypted_len = encrypt_field((unsigned char *)value, strlen(value), encrypted_value, tag, jsean);
+        encrypted_len = encrypt_field((unsigned char *)validated_value, strlen(validated_value), encrypted_value, tag, jsean);
         snprintf(data_field->value, sizeof(data_field->value), "%.*s", encrypted_len, encrypted_value);
         data_field->is_encrypted = 1;
         printf("Stored encrypted value for key '%s'\n", key);
     } else {
-        strcpy(data_field->value, value);
+        strcpy(data_field->value, validated_value);
         data_field->is_encrypted = 0;
         printf("Stored plain value for key '%s'\n", key);
     }
