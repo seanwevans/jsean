@@ -81,7 +81,10 @@ void initialize(JSean *jsean, SchemaField *schema, int schema_count) {
     jsean->version_count = 0;
     memcpy(jsean->schema, schema, schema_count * sizeof(SchemaField));
     jsean->schema_count = schema_count;
-    RAND_bytes(jsean->aes_key, AES_KEY_SIZE); // Generate AES key
+    if (RAND_bytes(jsean->aes_key, AES_KEY_SIZE) != 1) { // Generate AES key
+        fprintf(stderr, "RAND_bytes failed in initialize\n");
+        exit(EXIT_FAILURE);
+    }
 }
 
 // AES-GCM encryption function for field values
@@ -91,6 +94,7 @@ int encrypt_field(const unsigned char *plaintext, int plaintext_len, unsigned ch
     int len, ciphertext_len;
 
     EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, jsean->aes_key, iv);
+
     EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintext_len);
     ciphertext_len = len;
 
@@ -213,7 +217,10 @@ void store_data_field(JSean *jsean, const char *key, const char *value, const ch
     snprintf(data_field->key, sizeof(data_field->key), "%s", key);
     if (is_encrypted) {
 
-        RAND_bytes(data_field->iv, AES_IV_SIZE);
+        if (RAND_bytes(data_field->iv, AES_IV_SIZE) != 1) {
+            fprintf(stderr, "RAND_bytes failed in store_data_field\n");
+            exit(EXIT_FAILURE);
+        }
         encrypted_len = encrypt_field((unsigned char *)value, strlen(value), encrypted_value,
                                       data_field->tag, data_field->iv, jsean);
         memcpy(data_field->value, encrypted_value, encrypted_len);
