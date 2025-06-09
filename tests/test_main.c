@@ -11,13 +11,16 @@ void test_encryption() {
     const char *plaintext = "HelloWorld";
     unsigned char ciphertext[128];
     unsigned char tag[AES_TAG_SIZE];
+    unsigned char iv[AES_IV_SIZE];
+    RAND_bytes(iv, AES_IV_SIZE);
     int cipher_len = encrypt_field((const unsigned char *)plaintext,
                                    strlen(plaintext),
                                    ciphertext,
                                    tag,
+                                   iv,
                                    &jsean);
     unsigned char decrypted[128];
-    int plain_len = decrypt_field(ciphertext, cipher_len, tag, decrypted, &jsean);
+    int plain_len = decrypt_field(ciphertext, cipher_len, tag, decrypted, iv, &jsean);
     assert(plain_len >= 0);
     decrypted[plain_len] = '\0';
     assert(strcmp((char *)decrypted, plaintext) == 0);
@@ -39,7 +42,7 @@ void test_permission() {
     assert(jsean.data_count == count_before + 1); // stored
 
     char output[100] = "unchanged";
-    retrieve_data_field(&jsean, "confidential", output, "editor");
+    retrieve_data_field(&jsean, "confidential", output, sizeof(output), "editor");
     assert(strcmp(output, "unchanged") == 0); // permission denied
 
     printf("test_permission passed\n");
