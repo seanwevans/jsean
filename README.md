@@ -1,5 +1,7 @@
 [📝 Read The RFC here!](https://seanwevans.github.io/jsean/)
 
+<img width="256" alt="Digital Gradient Design with _jsean_" src="https://github.com/user-attachments/assets/41904aca-b438-4b45-980d-27fc2eb0751b" />
+
 # JSean - Secure and Role-Based JSON Data Structure
 
 ## Overview
